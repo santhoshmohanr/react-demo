@@ -1,0 +1,85 @@
+trigger:
+- master
+
+pr: none
+
+variables:
+ 
+  # We build on linux to remove any dependancies on windows stuff / can move to GCP or AWS
+  vmImageName: 'ubuntu-18.04'
+ 
+  
+stages:
+  - stage: Build
+    displayName: Build stage
+    jobs:
+      - job: BuildReactApp
+        displayName: BuildReactApp
+        pool:
+          vmImage: $(vmImageName)
+
+        steps:
+          - task: NodeTool@0
+            inputs:
+              versionSpec: '10.x'
+            displayName: 'Install Node.js'
+                  
+          - script: |
+              rm -rf node_modules
+              yarn install
+              yarn cache clean
+              yarn run eslint
+              yarn build
+            displayName: 'Yarn Install and Build'
+           
+          - task: CopyFiles@2
+            inputs:
+              SourceFolder: '$(System.DefaultWorkingDirectory)/build/'
+              Contents: |
+                $(System.DefaultWorkingDirectory)/build/**/*
+              TargetFolder: '$(Build.ArtifactStagingDirectory)/dist'
+            displayName: 'Copy site files to artifact directory'
+
+          - task: ArchiveFiles@2
+            displayName: 'Archive files'
+            inputs:
+              rootFolderOrFile: '$(Build.ArtifactStagingDirectory)/dist'
+              includeRootFolder: false
+              archiveType: zip
+              archiveFile: $(Build.ArtifactStagingDirectory)/react-app-dist.zip
+              replaceExistingArchive: true
+
+          - task: PublishPipelineArtifact@0
+            displayName: 'Publish site pipeline artifacts'
+            inputs:
+              artifactName: "react-app-dist"
+              targetPath: $(Build.ArtifactStagingDirectory)/react-app-dist.zip
+
+
+  - stage: Deploy
+    displayName: Deploy to Azure Storage
+    dependsOn: Build
+    condition: succeeded()
+    jobs:
+      - deployment: DeploySite 
+        displayName: Deploy Site to ITE
+        environment: 'production'
+        pool:
+          vmImage: $(vmImageName)
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - task: DownloadPipelineArtifact@1
+                  displayName: 'Download Pipeline Artifacts'
+                  inputs:
+                    artifactName: "react-app-dist"
+                    buildType: 'current'
+
+                - task: ExtractFiles@1
+                  inputs:
+                    archiveFilePatterns: '$(System.ArtifactsDirectory)/react-app-dist.zip'
+                    destinationFolder: '$(System.DefaultWorkingDirectory)/unzip/react-app-dist'
+                    cleanDestinationFolder: true
+
+               

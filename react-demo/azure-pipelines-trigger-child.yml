@@ -1,0 +1,25 @@
+# Starter pipeline
+# Start with a minimal pipeline that you can customize to build and deploy your code.
+# Add steps that build, run tests, deploy, and more:
+# https://aka.ms/yaml
+
+trigger:
+- none
+
+pool:
+  vmImage: ubuntu-latest
+
+resources:
+  pipelines:
+    - pipeline: mysoursepipeline
+      source: 'Pipeline_Trigger-source'
+      trigger:
+       branches:
+       - master
+
+steps:
+ - script: echo Triggered by the source pipeline '${{resources.pipeline.lab3aprimaryPipeline.pipelineName}}'
+   displayName: 'Echo script'
+
+ - download: lab3aprimaryPipeline
+   artifact: lab3aprimaryDist
